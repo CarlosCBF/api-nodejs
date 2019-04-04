@@ -1,6 +1,8 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const mailer = require("../../modules/mail");
 
 const router = express.Router();
 
@@ -53,6 +55,46 @@ router.post("/authenticate", async (req, res) => {
     });
   } catch (error) {
     res.status(400).send(error);
+  }
+});
+
+router.post("/forgot_password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(400).send({ error: "User not found" });
+
+    const token = crypto.randomBytes(20).toString("hex");
+
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+
+    await User.findByIdAndUpdate(user.id, {
+      $set: {
+        passwordResetToken: token,
+        passwordResetExpires: now
+      }
+    });
+    mailer.sendMail(
+      {
+        to: email,
+        from: "cc_bf@hotmail.com",
+        template: "auth/forgot_password",
+        context: { token }
+      },
+      error => {
+        if (error)
+          return res
+            .status(400)
+            .send({ error: "Cannot send forgot password mail" });
+
+        return res.send();
+      }
+    );
+  } catch (error) {
+    console.log(error);
+    res.status(400).send({ error: "Error on forgot password, try again" });
   }
 });
 
