@@ -93,8 +93,39 @@ router.post("/forgot_password", async (req, res) => {
       }
     );
   } catch (error) {
-    console.log(error);
     res.status(400).send({ error: "Error on forgot password, try again" });
+  }
+});
+
+router.post("/reset_password", async (req, res) => {
+  try {
+    const { email, token, password } = req.body;
+
+    const user = await User.findOne({ email }).select(
+      "+passwordResetToken passwordResetExpires"
+    );
+
+    if (!user) return res.status(400).send({ error: "User not found" });
+
+    if (token !== user.passwordResetToken)
+      return res.status(400).send({ error: "Token invalid" });
+
+    const now = new Date();
+
+    if (now > user.passwordResetExpires)
+      return res
+        .status(400)
+        .send({ error: "Token expired, generate a new one" });
+
+    user.password = password;
+
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+
+    await user.save();
+    res.send();
+  } catch (error) {
+    return res.status(400).send({ error: "Cannot reset password, try again" });
   }
 });
 
